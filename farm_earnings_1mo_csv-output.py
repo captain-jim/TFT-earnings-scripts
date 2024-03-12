@@ -1,3 +1,4 @@
+# Requires 'requests' package - install this with pip.
 # Run the script with: python {script_name.py} {farm_ID} {month.year}
 # month can be input as one or two digits, year can be input as two or four digits.
 # csv file will be output to the directory where the script is located.
