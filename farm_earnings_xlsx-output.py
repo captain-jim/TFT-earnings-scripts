@@ -2,7 +2,7 @@
 # Script makes use of concurrent threading to increase data retrieval efficiency - default value is 4 which should be enough for almost any circumstance. 
 # Run the script with: python {script_name.py} {farm_ID} {month.year} for single month or {farm_ID} {month.year}-{month.year} for a range.
 # month can be input as one or two digits, year can be input as two or four digits.
-# Example call - python farm_earnings_xlsx-output 1234 01.23-12.23
+# Example call - python farm_earnings_xlsx-output.py 1234 01.23-12.23
 # xlsx file will be output to the directory where the script is located. Each month will create its own sheet within the workbook.
 # It should be noted that the uptime numbers for Feburary 2023 are broken server-side and will result in those cells being formatted in scientific notation.
 # The script is only able to access data tied to alpha.minting.tfchain.grid.tf which means any bonus payments will not be included in the output.
