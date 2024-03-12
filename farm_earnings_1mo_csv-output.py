@@ -1,7 +1,7 @@
 # Requires 'requests' package - install this with pip.
 # Run the script with: python {script_name.py} {farm_ID} {month.year}
 # month can be input as one or two digits, year can be input as two or four digits.
-# Example call - python farm_earnings_1mo_csv-output 1234 01.23
+# Example call - python farm_earnings_1mo_csv-output.py 1234 01.23
 # csv file will be output to the directory where the script is located.
 # It should be noted that the uptime numbers for Feburary 2023 are broken server-side and will result in those cells being formatted in scientific notation.
 # The script is only able to access data tied to alpha.minting.tfchain.grid.tf which means any bonus payments will not be included in the output.
