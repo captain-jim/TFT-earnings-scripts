@@ -1,7 +1,7 @@
 # TFT-earnings-scripts
 Python scripts tailored for Threefold blockchain farming data analysis. 
 
-The scripts fetch earnings data from a Threefold grid, organizing the information into either CSV or XLSX formats. Designed with user flexibility in mind, these scripts support single month queries or range based data retrieval, outputting well-structured and easily navigable reports.
+The scripts fetch earnings data from a Threefold grid, organizing the information into either CSV or XLSX formats.
 
 farm_earnings_1mo_csv-output:
 This Python script is designed to extract and organize farm earnings data from the Threefold grid into a CSV file. The script allows for querying data for a single month. The output is sorted by node ID in ascending order, and data is presented with the standardized period duration while precisely tracking TFT earnings and uptime statistics.
