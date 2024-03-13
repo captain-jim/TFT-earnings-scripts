@@ -14,60 +14,67 @@ from openpyxl import Workbook
 from concurrent.futures import ThreadPoolExecutor, as_completed
 
 def parse_month_year(month_year_str):
-    parts = month_year_str.split('.')
-    if len(parts) == 2:
-        month_str, year_str = parts
-        month = int(month_str)
-        
-        if len(year_str) == 2:
-            year = int(year_str) + 2000
-        elif len(year_str) == 4:
-            year = int(year_str)
-        else:
-            raise ValueError("Invalid year format. Please provide the year in two or four digits.")
-        
-        if not 1 <= month <= 12:
-            raise ValueError("Invalid month. Please provide a month between 1 and 12.")
-        
-        current_year = datetime.now().year
-        if not 2015 <= year <= current_year:
-            raise ValueError(f"Invalid year. Please provide a year between 2015 and {current_year}.")
-        
-        return month, year
-    else:
-        raise ValueError("Invalid date format. Please provide the date in month.year format.")
+    month, year = month_year_str.split('.')
+    month = int(month)
+    year = int(year) + 2000 if len(year) == 2 else int(year)
+    if not 1 <= month <= 12:
+        raise ValueError("Month must be between 1 and 12")
+    if not 2015 <= year:
+        raise ValueError("Year must be 2015 or later")
+    return month, year
 
-def format_float(num, precision):
-    return round(float(num), precision)
+def get_months_range(start, end):
+    start_month, start_year = parse_month_year(start)
+    end_month, end_year = parse_month_year(end)
+    current_date = datetime(start_year, start_month, 1)
+    end_date = datetime(end_year, end_month, 1)
+
+    months = []
+    while current_date <= end_date:
+        months.append(f"{current_date.month:02d}.{current_date.year}")
+        next_month = (current_date.month % 12) + 1
+        next_year = current_date.year + (current_date.month + 1) // 13
+        current_date = datetime(next_year, next_month, 1)
+    return months
+
+def format_float(num, precision=7):
+    return f"{num:.{precision}f}" if precision == 7 else f"{num:.2f}"
 
 def fetch_farm_nodes(farm_id):
     url = f'https://gridproxy.grid.tf/nodes?farm_ids={farm_id}&size=1000'
     response = requests.get(url)
-    return [node['nodeId'] for node in response.json()]
+    if response.status_code == 200:
+        return [node['nodeId'] for node in response.json()]
+    else:
+        raise ValueError(f"Failed to fetch nodes for farm ID {farm_id}.")
 
 def fetch_node_minting_history(session, node_id, month, year):
     url = f'https://alpha.minting.tfchain.grid.tf/api/v1/node/{node_id}'
     response = session.get(url)
-    receipts = response.json()
-    data = []
-    for item in receipts:
-        if 'Minting' in item['receipt']:
-            minting_info = item['receipt']['Minting']
-            period_start_unix = minting_info['period']['start']
-            start_date = datetime.fromtimestamp(period_start_unix)
-            adjusted_start_date = start_date + timedelta(days=2)
-            if adjusted_start_date.year == year and adjusted_start_date.month == month:
-                uptime_days = minting_info['measured_uptime'] / (24 * 3600)
-                uptime_percentage = (uptime_days / 30.45) * 100
-                data.append([
-                    minting_info['node_id'],
-                    format_float(minting_info['reward']['tft'] / 1e7, 7),
-                    30.45,
-                    format_float(uptime_days, 2),
-                    format_float(uptime_percentage, 2),
-                    item['hash']
-                ])
-    return data
+    if response.status_code == 200:
+        receipts = response.json()
+        data = []
+        for item in receipts:
+            if 'Minting' in item['receipt']:
+                minting_info = item['receipt']['Minting']
+                period_start_unix = minting_info['period']['start']
+                start_date = datetime.fromtimestamp(period_start_unix)
+                adjusted_start_date = start_date + timedelta(days=2)
+                if adjusted_start_date.year == year and adjusted_start_date.month == month:
+                    uptime_days = format_float(minting_info['measured_uptime'] / (24 * 3600), 2)
+                    uptime_percentage = format_float((minting_info['measured_uptime'] / (24 * 3600 * 30.45)) * 100, 2)
+                    data.append([
+                        minting_info['node_id'],
+                        format_float(minting_info['reward']['tft'] / 1e7),
+                        30.45,
+                        uptime_days,
+                        uptime_percentage,
+                        item['hash']
+                    ])
+        return data
+    else:
+        print(f"Failed to fetch minting history for node {node_id}")
+        return []
 
 def create_workbook(farm_id, dates):
     wb = Workbook()
@@ -75,20 +82,19 @@ def create_workbook(farm_id, dates):
 
     session = requests.Session()
     with ThreadPoolExecutor(max_workers=4) as executor:
-        for date_arg in dates:
-            month, year = parse_month_year(date_arg)
+        for date_str in dates:
+            month, year = parse_month_year(date_str)
             ws = wb.create_sheet(title=f"{month:02d}.{year}")
             ws.append(['Node ID', 'TFT Earned', 'Total Period (Days)', 'Uptime (Days)', 'Uptime (%)', 'Receipt Hash'])
-            
+
             node_ids = fetch_farm_nodes(farm_id)
             futures = [executor.submit(fetch_node_minting_history, session, node_id, month, year) for node_id in node_ids]
             all_data = []
             for future in as_completed(futures):
-                data = future.result()
-                all_data.extend(data)
+                all_data.extend(future.result())
 
+            # Sort data by Node ID before appending
             all_data.sort(key=lambda x: x[0])
-            
             for row in all_data:
                 ws.append(row)
     return wb
@@ -98,27 +104,11 @@ if len(sys.argv) < 3:
     sys.exit(1)
 
 farm_id = sys.argv[1]
-dates = sys.argv[2:]
+date_input = sys.argv[2]
+dates = get_months_range(date_input.split('-')[0], date_input.split('-')[-1]) if '-' in date_input else [date_input]
 
-try:
-    if '-' in dates[0]:
-        start_date, end_date = dates[0].split('-')
-        start_month, start_year = parse_month_year(start_date)
-        end_month, end_year = parse_month_year(end_date)
-        dates = []
-        while start_year < end_year or (start_year == end_year and start_month <= end_month):
-            dates.append(f"{start_month:02d}.{start_year}")
-            start_month += 1
-            if start_month > 12:
-                start_month = 1
-                start_year += 1
-        wb = create_workbook(farm_id, dates)
-        filename = f"{farm_id}_farm_earnings_{dates[0]}_to_{dates[-1]}.xlsx"
-    else:
-        wb = create_workbook(farm_id, [dates[0]])
-        filename = f"{farm_id}_farm_earnings_{dates[0]}.xlsx"
+wb = create_workbook(farm_id, dates)
+filename = f"{farm_id}_farm_earnings_{dates[0]}{'_to_' + dates[-1] if len(dates) > 1 else ''}.xlsx"
+wb.save(filename)
+print(f"Workbook saved as {filename}")
 
-    wb.save(filename)
-    print(f"Workbook saved as {filename}")
-except Exception as e:
-    print(f"An error occurred: {e}")
