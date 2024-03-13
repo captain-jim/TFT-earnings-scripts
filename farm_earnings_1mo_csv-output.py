@@ -18,7 +18,7 @@ def format_float(num, precision=7):
         return "{:.7f}".format(num)
 
 def fetch_farm_nodes(farm_id):
-    url = f'https://gridproxy.grid.tf/nodes?farm_ids={farm_id}'
+    url = f'https://gridproxy.grid.tf/nodes?farm_ids={farm_id}&size=1000'
     response = requests.get(url)
     nodes = response.json()
     return [node['nodeId'] for node in nodes]
